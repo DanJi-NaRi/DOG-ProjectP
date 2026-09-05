@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProjectP Server Monitor</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>ProjectP Server Monitor</h1>
+        <p id="updatedAt">-</p>
+      </div>
+      <div class="summary" id="summary"></div>
+    </header>
+
+    <nav class="tab-bar" aria-label="Monitor views">
+      <button type="button" class="tab-button active" id="monitoringTab" data-tab="monitoring">Monitoring</button>
+      <button type="button" class="tab-button" id="dbTab" data-tab="db">DB</button>
+    </nav>
+
+    <section class="tab-view active" id="monitoringTabPanel">
+      <section class="status-grid" id="services"></section>
+
+      <section class="layout">
+        <article class="panel topology-panel">
+          <div class="panel-header">
+            <h2>Server Topology</h2>
+          </div>
+          <div class="topology" id="topology"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Dungeon Ports</h2>
+          </div>
+          <div class="port-grid" id="ports"></div>
+        </article>
+      </section>
+
+      <section class="layout">
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Dungeon Sessions</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Session</th>
+                  <th>Party</th>
+                  <th>Address</th>
+                  <th>PID</th>
+                  <th>Process</th>
+                  <th>Clients</th>
+                  <th>State</th>
+                  <th>Members</th>
+                  <th>Updated</th>
+                </tr>
+              </thead>
+              <tbody id="dungeons"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <h2>Events</h2>
+          </div>
+          <div class="events" id="events"></div>
+        </article>
+      </section>
+    </section>
+
+    <section class="tab-view" id="dbTabPanel">
+      <section class="status-grid db-summary-grid" id="dbSummary"></section>
+
+      <section class="layout db-layout">
+        <article class="panel db-table-panel">
+          <div class="panel-header split-header">
+            <h2>Database Tables</h2>
+            <button type="button" class="small-button" id="dbRefresh">Refresh</button>
+          </div>
+          <div class="db-table-list" id="dbTables"></div>
+        </article>
+
+        <article class="panel db-rows-panel">
+          <div class="panel-header table-panel-header">
+            <div>
+              <h2 id="dbRowsTitle">Table Rows</h2>
+              <p id="dbRowsSubtitle">-</p>
+            </div>
+          </div>
+          <div class="table-wrap db-table-wrap">
+            <table id="dbRowsTable"></table>
+          </div>
+        </article>
+      </section>
+
+      <article class="panel db-schema-panel">
+        <div class="panel-header">
+          <h2>Columns</h2>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Key</th>
+                <th>Nullable</th>
+                <th>Masked</th>
+              </tr>
+            </thead>
+            <tbody id="dbColumns"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <div class="modal-backdrop hidden" id="serverLogModal" role="dialog" aria-modal="true">
+    <section class="log-dialog">
+      <div class="log-dialog-header">
+        <div>
+          <h2 id="serverLogTitle">-</h2>
+          <p id="serverLogSubtitle">-</p>
+        </div>
+        <div class="log-dialog-actions">
+          <div class="modal-tab-bar" aria-label="Server log view mode">
+            <button type="button" class="modal-tab-button active" data-log-view="brief">간략히</button>
+            <button type="button" class="modal-tab-button" data-log-view="detail">자세히</button>
+            <button type="button" class="modal-tab-button lobby-users-tab hidden" data-log-view="users">접속 유저</button>
+          </div>
+          <button type="button" class="icon-button" id="serverLogClose" aria-label="Close">×</button>
+        </div>
+      </div>
+      <div class="server-log-list" id="serverLogList"></div>
+    </section>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

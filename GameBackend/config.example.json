@@ -1,0 +1,50 @@
+{
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8080
+  },
+  "serverAuth": {
+    "dungeonStateKey": "change-me-dungeon-state-key"
+  },
+  "dungeonManager": {
+    "baseUrl": "http://127.0.0.1:8090",
+    "gameBackendBaseUrl": "http://127.0.0.1:8080",
+    "host": "127.0.0.1",
+    "port": 8090,
+    "publicHost": "",
+    "portStart": 7780,
+    "portEnd": 7799,
+    "serverExecutable": "Binaries/Win64/ProjectP.exe",
+    "mapName": "/Game/LeDuat/Maps/Map_Dungeon_1",
+    "startupWaitMs": 90000,
+    "initialJoinWaitMs": 180000,
+    "shutdownGraceMs": 5000,
+    "shutdownForceWaitMs": 3000,
+    "shutdownPortWaitMs": 2000,
+    "shutdownPollIntervalMs": 250,
+    "shutdownRetryIntervalMs": 10000,
+    "shutdownRetryMaxCount": 5,
+    "extraArgs": [
+      "-server",
+      "-log"
+    ]
+  },
+  "monitor": {
+    "host": "127.0.0.1",
+    "port": 9000,
+    "gameBackendBaseUrl": "http://127.0.0.1:8080",
+    "dungeonManagerBaseUrl": "http://127.0.0.1:8090",
+    "lobbyHost": "",
+    "lobbyPort": 7777,
+    "pollIntervalMs": 3000,
+    "maxEvents": 200
+  },
+  "database": {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "root",
+    "password": "change-me",
+    "database": "yuno_auth",
+    "connectionLimit": 10
+  }
+}

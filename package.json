@@ -1,0 +1,19 @@
+{
+  "name": "projectp-game-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local game backend for ProjectP",
+  "scripts": {
+    "game-backend": "node GameBackend/server.js",
+    "dungeon-manager": "node GameBackend/dungeon-manager.js",
+    "server-monitor": "node GameBackend/server-monitor.js",
+    "login-server": "node GameBackend/server.js"
+  },
+  "dependencies": {
+    "argon2": "^0.44.0",
+    "express": "^5.2.1",
+    "mysql2": "^3.22.2",
+    "swagger-jsdoc": "^6.3.0",
+    "swagger-ui-express": "^5.0.1"
+  }
+}

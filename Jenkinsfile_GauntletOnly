@@ -1,0 +1,347 @@
+pipeline {
+    agent { label 'gauntlet-windows-login' }
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    parameters {
+        string(
+            name: 'PACKAGE_SOURCE_ROOT',
+            defaultValue: 'C:\\JenkinsAgent\\GA7th-Windows-Login-Agent\\workspace\\ProjectP-SVN-Checkout-Test',
+            description: 'Workspace or folder that already contains Saved\\Packaged and node_modules from a successful build.'
+        )
+    }
+
+    stages {
+        stage('Checkout SVN') {
+            steps {
+                checkout([
+                    $class: 'SubversionSCM',
+                    locations: [[
+                        remote: 'https://svna.gameinjae.kr/svn/GA7thFinal_RageOfPharaoh/Project',
+                        credentialsId: 'kkkgg549',
+                        local: '.'
+                    ]],
+                    workspaceUpdater: [$class: 'UpdateUpdater']
+                ])
+            }
+        }
+
+        stage('Validate Environment') {
+            steps {
+                powershell '''
+                $ErrorActionPreference = "Stop"
+
+                $requiredPaths = @(
+                    "ProjectP.uproject",
+                    "Run_GauntletResetTestData.ps1",
+                    "Run_GauntletLoginLobbyTest.ps1",
+                    "Stop_AllServers.bat",
+                    "Start_AllServers.bat",
+                    "HealthCheck_Servers.bat",
+                    "GameBackend\\config.example.json",
+                    "package.json",
+                    "C:\\Users\\k2503200045\\UnrealEngine\\Engine\\Build\\BatchFiles\\RunUAT.bat"
+                )
+
+                foreach ($path in $requiredPaths) {
+                    if (-not (Test-Path $path)) {
+                        throw "Required path not found: $path"
+                    }
+
+                    Write-Host "OK: $path"
+                }
+
+                if ([string]::IsNullOrWhiteSpace($env:PACKAGE_SOURCE_ROOT)) {
+                    throw "PACKAGE_SOURCE_ROOT is required."
+                }
+
+                if (-not (Test-Path -LiteralPath $env:PACKAGE_SOURCE_ROOT)) {
+                    throw "PACKAGE_SOURCE_ROOT was not found: $env:PACKAGE_SOURCE_ROOT"
+                }
+
+                svn --version --quiet
+                '''
+            }
+        }
+
+        stage('Prepare Runtime Config') {
+            steps {
+                powershell '''
+                $ErrorActionPreference = "Stop"
+
+                $backendConfigPath = "GameBackend\\config.json"
+                $serverRuntimePath = "ServerRuntime.ini"
+                $secretBackendConfigPath = "C:\\JenkinsSecrets\\ProjectP\\GameBackend.config.json"
+                $secretServerRuntimePath = "C:\\JenkinsSecrets\\ProjectP\\ServerRuntime.ini"
+
+                if (-not (Test-Path $secretBackendConfigPath)) {
+                    throw "Jenkins backend config secret was not found."
+                }
+
+                if (-not (Test-Path $secretServerRuntimePath)) {
+                    throw "Jenkins server runtime config secret was not found."
+                }
+
+                Copy-Item -LiteralPath $secretBackendConfigPath -Destination $backendConfigPath -Force
+                $backendConfig = Get-Content -Raw -Encoding UTF8 $backendConfigPath | ConvertFrom-Json
+                if ($null -eq $backendConfig.dungeonManager) {
+                    $backendConfig | Add-Member -MemberType NoteProperty -Name dungeonManager -Value ([pscustomobject]@{}) -Force
+                }
+
+                $backendConfig.dungeonManager | Add-Member -MemberType NoteProperty -Name mapName -Value "/Game/LeDuat/Maps/Map_Dungeon_1" -Force
+
+                $startupWaitMs = 0
+                if ($null -ne $backendConfig.dungeonManager.startupWaitMs) {
+                    $startupWaitMs = [int]$backendConfig.dungeonManager.startupWaitMs
+                }
+
+                if ($startupWaitMs -lt 90000) {
+                    $backendConfig.dungeonManager | Add-Member -MemberType NoteProperty -Name startupWaitMs -Value 90000 -Force
+                }
+
+                $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                [System.IO.File]::WriteAllText((Resolve-Path $backendConfigPath).Path, ($backendConfig | ConvertTo-Json -Depth 10), $utf8NoBom)
+                Copy-Item -LiteralPath $secretServerRuntimePath -Destination $serverRuntimePath -Force
+                Write-Host "Backend config prepared: $backendConfigPath"
+                Write-Host "Server runtime config prepared: $serverRuntimePath"
+                '''
+            }
+        }
+
+        stage('Stop Servers') {
+            steps {
+                bat 'call Stop_AllServers.bat'
+            }
+        }
+
+        stage('Sync Existing Packages') {
+            steps {
+                powershell '''
+                $ErrorActionPreference = "Stop"
+
+                function Invoke-RobocopyChecked {
+                    param(
+                        [string]$Source,
+                        [string]$Destination,
+                        [string]$Label
+                    )
+
+                    if (-not (Test-Path -LiteralPath $Source)) {
+                        throw "Package source not found for ${Label}: $Source"
+                    }
+
+                    $resolvedSource = [System.IO.Path]::GetFullPath($Source).TrimEnd("\\")
+                    $resolvedDestination = [System.IO.Path]::GetFullPath($Destination).TrimEnd("\\")
+                    if ($resolvedSource.Equals($resolvedDestination, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        Write-Host "Skipping $Label because source and destination are the same: $resolvedSource"
+                        return
+                    }
+
+                    New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+                    Write-Host "Copying $Label from $resolvedSource to $resolvedDestination"
+                    robocopy $resolvedSource $resolvedDestination /E /XD .svn /NFL /NDL /NJH /NJS /NP
+                    $exitCode = $LASTEXITCODE
+                    if ($exitCode -gt 7) {
+                        throw "robocopy failed for ${Label}. ExitCode=$exitCode"
+                    }
+
+                    $global:LASTEXITCODE = 0
+                }
+
+                $workspaceRoot = (Get-Location).Path
+                $sourceRoot = [System.IO.Path]::GetFullPath($env:PACKAGE_SOURCE_ROOT)
+
+                $copyItems = @(
+                    @{ RelativePath = "Saved\\Packaged\\Client"; Label = "Client package" },
+                    @{ RelativePath = "Saved\\Packaged\\LobbyServer"; Label = "LobbyServer package" },
+                    @{ RelativePath = "Saved\\Packaged\\DungeonServer"; Label = "DungeonServer package" },
+                    @{ RelativePath = "node_modules"; Label = "Node dependencies" }
+                )
+
+                foreach ($item in $copyItems) {
+                    Invoke-RobocopyChecked `
+                        -Source (Join-Path $sourceRoot $item.RelativePath) `
+                        -Destination (Join-Path $workspaceRoot $item.RelativePath) `
+                        -Label $item.Label
+                }
+                '''
+            }
+        }
+
+        stage('Validate Test Packages') {
+            steps {
+                powershell '''
+                $ErrorActionPreference = "Stop"
+
+                $requiredPaths = @(
+                    "Saved\\Packaged\\Client\\Windows\\ProjectP.exe",
+                    "Saved\\Packaged\\LobbyServer\\WindowsServer\\ProjectPServer.exe",
+                    "Saved\\Packaged\\DungeonServer\\WindowsServer\\ProjectPServer.exe",
+                    "Saved\\Packaged\\Client\\Windows\\ServerRuntime.ini",
+                    "Saved\\Packaged\\LobbyServer\\WindowsServer\\ServerRuntime.ini",
+                    "Saved\\Packaged\\DungeonServer\\WindowsServer\\ServerRuntime.ini",
+                    "node_modules\\express",
+                    "node_modules\\mysql2",
+                    "node_modules\\argon2"
+                )
+
+                foreach ($path in $requiredPaths) {
+                    if (-not (Test-Path -LiteralPath $path)) {
+                        throw "Required test package path not found: $path"
+                    }
+
+                    Write-Host "OK: $path"
+                }
+                '''
+            }
+        }
+
+        stage('Refresh Runtime Host') {
+            steps {
+                powershell '''
+                $ErrorActionPreference = "Stop"
+
+                function Get-ProjectPServerHost {
+                    if ($env:PROJECTP_SERVER_HOST -and $env:PROJECTP_SERVER_HOST.Trim()) {
+                        return $env:PROJECTP_SERVER_HOST.Trim()
+                    }
+
+                    $configs = @(Get-NetIPConfiguration | Where-Object {
+                        $_.IPv4Address -and $_.NetAdapter.Status -eq "Up"
+                    })
+
+                    $withGateway = @($configs | Where-Object {
+                        $_.IPv4DefaultGateway -and $_.IPv4DefaultGateway.NextHop
+                    })
+
+                    $candidates = if ($withGateway.Count -gt 0) { $withGateway } else { $configs }
+                    foreach ($config in $candidates) {
+                        foreach ($address in @($config.IPv4Address)) {
+                            $ip = [string]$address.IPAddress
+                            if ($ip -and $ip -notlike "127.*" -and $ip -notlike "169.254.*") {
+                                return $ip
+                            }
+                        }
+                    }
+
+                    throw "Could not detect server IPv4 address."
+                }
+
+                function Set-ServerRuntimeHost {
+                    param(
+                        [string]$Path,
+                        [string]$ServerHost
+                    )
+
+                    if (-not (Test-Path $Path)) {
+                        throw "ServerRuntime.ini not found: $Path"
+                    }
+
+                    $resolvedPath = (Resolve-Path $Path).Path
+                    $text = Get-Content -Raw -Encoding UTF8 $resolvedPath
+
+                    if ($text -match "(?m)^ServerHost\\s*=") {
+                        $text = [regex]::Replace($text, "(?m)^ServerHost\\s*=.*$", "ServerHost=$ServerHost")
+                    }
+                    elseif ($text -match "(?m)^\\[ProjectP\\.Server\\]") {
+                        $text = [regex]::Replace($text, "(?m)^\\[ProjectP\\.Server\\]\\s*$", "[ProjectP.Server]`r`nServerHost=$ServerHost")
+                    }
+                    else {
+                        $text = $text.TrimEnd() + "`r`n`r`n[ProjectP.Server]`r`nServerHost=$ServerHost`r`n"
+                    }
+
+                    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+                    [System.IO.File]::WriteAllText($resolvedPath, $text, $utf8NoBom)
+                    Write-Host "ServerHost refreshed: $Path -> $ServerHost"
+                }
+
+                $serverHost = Get-ProjectPServerHost
+                Write-Host "Detected server host: $serverHost"
+
+                $runtimePaths = @(
+                    "ServerRuntime.ini",
+                    "Saved\\Packaged\\LobbyServer\\WindowsServer\\ServerRuntime.ini",
+                    "Saved\\Packaged\\DungeonServer\\WindowsServer\\ServerRuntime.ini",
+                    "Saved\\Packaged\\Client\\Windows\\ServerRuntime.ini"
+                )
+
+                foreach ($runtimePath in $runtimePaths) {
+                    Set-ServerRuntimeHost -Path $runtimePath -ServerHost $serverHost
+                }
+                '''
+            }
+        }
+
+        stage('Start Servers') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'projectp-gauntlet-test-auth', variable: 'GAUNTLET_TEST_AUTH')
+                ]) {
+                    bat '''
+                    set JENKINS_NODE_COOKIE=dontKillMe
+                    set BUILD_ID=dontKillMe
+                    call Start_AllServers.bat --no-pause
+                    '''
+                }
+            }
+        }
+
+        stage('Health Check') {
+            steps {
+                bat 'call HealthCheck_Servers.bat'
+            }
+        }
+
+        stage('Reset Gauntlet Test Data') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'projectp-gauntlet-test-auth', variable: 'GAUNTLET_TEST_AUTH'),
+                    string(credentialsId: 'projectp-gauntlet-test-1-password', variable: 'GAUNTLET_TEST_1_PASSWORD'),
+                    string(credentialsId: 'projectp-gauntlet-test-2-password', variable: 'GAUNTLET_TEST_2_PASSWORD'),
+                    string(credentialsId: 'projectp-gauntlet-test-3-password', variable: 'GAUNTLET_TEST_3_PASSWORD')
+                ]) {
+                    powershell '''
+                    $ErrorActionPreference = "Stop"
+                    .\\Run_GauntletResetTestData.ps1 -WriteCredentialsFile -PrepareDuplicateLogin
+                    '''
+                }
+            }
+        }
+
+        stage('Run Gauntlet Login Lobby Test') {
+            steps {
+                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                    powershell '''
+                    $ErrorActionPreference = "Stop"
+                    .\\Run_GauntletLoginLobbyTest.ps1
+                    '''
+                }
+            }
+        }
+
+        stage('Post Reset Gauntlet Test Data') {
+            steps {
+                withCredentials([
+                    string(credentialsId: 'projectp-gauntlet-test-auth', variable: 'GAUNTLET_TEST_AUTH')
+                ]) {
+                    powershell '''
+                    $ErrorActionPreference = "Stop"
+                    .\\Run_GauntletResetTestData.ps1 -DeleteCredentialsFile
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            powershell '''
+            Remove-Item -LiteralPath "Saved\\Gauntlet\\gauntlet-login-lobby-credentials.json" -Force -ErrorAction SilentlyContinue
+            '''
+            archiveArtifacts artifacts: 'Saved/Logs/**/*.log', allowEmptyArchive: true
+        }
+    }
+}

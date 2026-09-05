@@ -1,0 +1,70 @@
+###############################################################################
+# ProjectP (D.O.G) - Portfolio Code Repository
+# 코드/설정/문서만 관리한다. 언리얼 에셋(Content), 빌드 산출물, 바이너리는 제외.
+###############################################################################
+
+# --- 언리얼 에셋 / 대용량 (7.1GB) ---
+Content/
+SourceAssets/
+Data/Texture/
+
+# --- 언리얼 빌드 산출물 ---
+Binaries/
+Intermediate/
+Saved/
+DerivedDataCache/
+Build/Receipts/
+*.uasset
+*.umap
+
+# --- IDE / 생성 파일 ---
+.vs/
+.idea/
+.vscode/
+*.sln
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
+*.VC.opendb
+*.xcodeproj/
+*.xcworkspace/
+
+# --- 다른 VCS ---
+.svn/
+
+# --- Node ---
+node_modules/
+npm-debug.log*
+coverage/
+
+# --- 서드파티 바이너리 (헤더/lib) ---
+ThirdParty/MySQL/
+
+# --- 플러그인: 에셋/리소스/서드파티 바이너리 제외, Source 와 .uplugin 만 유지 ---
+Plugins/*/Content/
+Plugins/*/Resources/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+Plugins/*/ThirdParty/
+Plugins/*/Reports/
+
+# --- 외부 제작 플러그인 전체 제외 (자체 제작분만 공개) ---
+Plugins/KawaiiPhysics/
+Plugins/VisualStudioTools/
+Plugins/GameplayMessageRouter/
+
+# --- 런타임 설정(실제 값) : example 만 커밋 ---
+ServerRuntime.ini
+GameBackend/config.json
+
+# --- 기타 ---
+*.log
+Thumbs.db
+.DS_Store
+
+# --- 포트폴리오 범위 외: 내부 문서 / 게임 데이터 ---
+AI_Docs/
+Data/
+CLAUDE.md
+서버 IP설정 체크리스트.md

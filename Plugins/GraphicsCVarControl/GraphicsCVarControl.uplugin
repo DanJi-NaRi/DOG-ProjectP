@@ -1,0 +1,31 @@
+{
+	"FileVersion": 3,
+	"Version": 15,
+	"VersionName": "2.3.0",
+	"FriendlyName": "Graphics CVar Control",
+	"Description": "Editor tools for graphics CVar control, stat GPU snapshots, ProfileGPU comparison, rendering asset context analysis, spike tracking, and AI-ready reports.",
+	"Category": "Rendering",
+	"CreatedBy": "DotheZac",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"EnabledByDefault": true,
+	"Modules": [
+		{
+			"Name": "GraphicsCVarControlEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "Niagara",
+			"Enabled": true
+		}
+	]
+}
